@@ -2,8 +2,8 @@ import Data.List (foldl')
 
 data Character = Character String [Level] deriving Show
 data Level = Attribute Attr Int
-           | Advantage String Int
-           | LAdvantage String Int Int
+           | BAdvantage String Int --binary advantage
+           | LAdvantage String Int Int --leveled advantage
            | Skill String Attr Difficulty Int
   deriving Show
 data Attr = ST | DX | IQ | HT | HP | FP | Will | Per | BasicSpeed | Move
@@ -13,14 +13,29 @@ data Difficulty = Easy | Avg | Hard | VHard deriving Show
 zeroPointCharacter = Character "" []
 
 addLevel :: Character -> Level -> Character
-addLevel (Character n ls) a = Character n $ a:ls
+addLevel (Character n ls) a = Character n $ mergeLevels a ls
+
+mergeLevels k@(Attribute a n) l@((Attribute b m):ls) =
+  if a == b then Attribute a (n+m) : ls else head l : mergeLevels k ls
+mergeLevels k@(BAdvantage n c) l@((BAdvantage m b):ls) =
+  if n == m then l else head l : mergeLevels k ls
+mergeLevels k@(LAdvantage n1 l1 c1) l@((LAdvantage n2 l2 c2):ls) =
+  if n1 == n2 then LAdvantage n1 (l1+l2) c1 : ls else head l : mergeLevels k ls
+mergeLevels k@(Skill n1 a1 d1 l1) l@((Skill n2 a2 d2 l2):ls) =
+  if n1 == n2 then k : ls else head l : mergeLevels k ls
+mergeLevels l [] = [l]
+mergeLevels k (l:ls) = l : mergeLevels k ls
 
 addLevels as c = foldl' addLevel c as
 
 main = print $ addLevels 
         [Attribute DX (-1), 
          Attribute ST 1,
-         Advantage "Combat Reflexes" 15,
-         LAdvantage "Independent Income" 5 2, --II 5, 2/level
-         Skill "Sword" DX Avg 1] zeroPointCharacter
+         Attribute ST 1,
+         BAdvantage "Combat Reflexes" 15,
+         BAdvantage "Combat Reflexes" 15,
+         LAdvantage "Independent Income" 5 2,
+         LAdvantage "Independent Income" 5 2,
+         Skill "Sword" DX Avg 1,
+         Skill "Sword" DX Avg 0] zeroPointCharacter
 
