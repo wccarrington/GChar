@@ -1,4 +1,6 @@
 import Data.List (foldl')
+import qualified UI.HSCurses.CursesHelper as CH
+import qualified UI.HSCurses.Curses as C
 
 data Character = Character String [Level] deriving Show
 data Level = Attribute Attr Int
@@ -28,14 +30,12 @@ mergeLevels k (l:ls) = l : mergeLevels k ls
 
 addLevels as c = foldl' addLevel c as
 
-main = print $ addLevels 
-        [Attribute DX (-1), 
-         Attribute ST 1,
-         Attribute ST 1,
-         BAdvantage "Combat Reflexes" 15,
-         BAdvantage "Combat Reflexes" 15,
-         LAdvantage "Independent Income" 5 2,
-         LAdvantage "Independent Income" 5 2,
-         Skill "Sword" DX Avg 1,
-         Skill "Sword" DX Avg 0] zeroPointCharacter
+loop :: IO ()
+loop = CH.getKey C.refresh >>= 
+       \k -> case k of C.KeyChar 'q' -> return ()
+                       _             -> loop
+
+main = CH.start >>
+       loop >>
+       CH.end
 
