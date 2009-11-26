@@ -35,7 +35,7 @@ mergeLevels k (l:ls) = l : mergeLevels k ls
 
 getAttribute :: Attr -> Character -> Int
 getAttribute a (Character _ ls) = helper a ls
-  where helper a1 (Attribute a2 n:ls) = if a1 == a1 then n else helper a1 ls
+  where helper a1 (Attribute a2 n:ls) = if a1 == a2 then n else helper a1 ls
         helper a (_:ls) = helper a ls
         helper a [] = 0
 
@@ -44,29 +44,46 @@ addLevels as c = foldl' addLevel c as
 
 addStr :: String -> IO ()
 addStr = C.wAddStr C.stdScr
+
 drawCharacter :: Character -> IO ()
 drawCharacter c@(Character name ls) =
   (C.move 0 0) >> addStr name >>
-  (C.move 1 0) >> addStr "ST " >> (addStr $ show $ getAttribute ST c) >>
-  (C.move 1 7) >> addStr "HP 10" >>
-  (C.move 2 0) >> addStr "DX " >> (addStr $ show $ getAttribute DX c) >>
-  (C.move 2 7) >> addStr "BS 10" >>
-  (C.move 2 14) >> addStr "BM 10" >>
-  (C.move 3 0) >> addStr "IQ " >> (addStr $ show $ getAttribute IQ c) >>
-  (C.move 3 7) >> addStr "WL 10" >>
-  (C.move 3 14) >> addStr "PR 10" >>
-  (C.move 4 0) >> addStr "HT " >> (addStr $ show $ getAttribute HT c) >>
-  (C.move 4 7) >> addStr "FP 10" >> C.refresh
+  (C.move 1 0) >> addStr "ST " >> (addStr $ show $ getAttribute ST c+10) >>
+  (C.move 1 7) >> addStr "HP " >> 
+  (addStr $ show $ getAttribute ST c + getAttribute HP c + 10) >>
+  (C.move 2 0) >> addStr "DX " >> (addStr $ show $ getAttribute DX c+10) >>
+  (C.move 2 7) >> addStr "BS " >>
+  (addStr $ take 3 $ show $ (fromIntegral (getAttribute DX c) + 
+                    fromIntegral (getAttribute HT c) + 
+                    fromIntegral (getAttribute BasicSpeed c)+ 20)/4) >>
+  (C.move 2 14) >> addStr "BM " >>
+  (addStr $ show $ truncate $ (fromIntegral (getAttribute DX c) + 
+                    fromIntegral (getAttribute HT c) +
+                    fromIntegral (getAttribute BasicSpeed c) + 20)/4 +
+                    fromIntegral (getAttribute Move c)) >>
+  (C.move 3 0) >> addStr "IQ " >> (addStr $ show $ getAttribute IQ c+10) >>
+  (C.move 3 7) >> addStr "WL " >>
+  (addStr $ show $ getAttribute IQ c + getAttribute Will c + 10) >>
+  (C.move 3 14) >> addStr "PR " >>
+  (addStr $ show $ getAttribute IQ c + getAttribute Per c + 10) >>
+  (C.move 4 0) >> addStr "HT " >> (addStr $ show $ getAttribute HT c+10) >>
+  (C.move 4 7) >> addStr "FP " >> 
+  (addStr $ show $ getAttribute HT c + getAttribute FP c + 10) >>
+  C.refresh
 
 keypress :: Char -> IO ()
 keypress c = (C.mvAddCh 0 0 $ fromIntegral $ fromEnum c) >> C.refresh >> loop
 
+sampleChar = addLevels [Attribute ST 2, BAdvantage "Absolute Direction" 5,
+                        Attribute IQ 2, Attribute HP 2, Attribute HT (-1),
+                        Attribute BasicSpeed 1, Attribute Move (-1)] $ 
+             Character "Bob" []
+
 loop :: IO ()
 loop = CH.getKey C.refresh >>= 
        \k -> case k of C.KeyChar '\ESC' -> return ()
-                       _ -> (drawCharacter $ Character "Bob" []) >> loop
+                       _ -> (drawCharacter $ sampleChar) >> loop
 
-main = CH.start >>
-       loop >>
-       CH.end
+main :: IO ()
+main = CH.start >> loop >> CH.end
 
