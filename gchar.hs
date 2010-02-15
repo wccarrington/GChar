@@ -1,6 +1,12 @@
 import Data.List (foldl')
+import Control.Monad.State
 import qualified UI.HSCurses.CursesHelper as CH
 import qualified UI.HSCurses.Curses as C
+
+type GChar = StateT Character IO
+
+normalStyle = CH.mkCursesStyle []
+reverseStyle = CH.mkCursesStyle [CH.Reverse]
 
 data Character = Character String [Level] deriving Show
 data Level = Attribute Attr Int
@@ -17,6 +23,9 @@ zeroPointCharacter = Character "" []
 
 nameCharacter :: String -> Character -> Character
 nameCharacter n (Character _ ls) = Character n ls
+
+characterName :: Character -> String
+characterName (Character name _) = name
 
 addLevel :: Character -> Level -> Character
 addLevel (Character n ls) a = Character n $ mergeLevels a ls
@@ -45,9 +54,12 @@ addLevels as c = foldl' addLevel c as
 addStr :: String -> IO ()
 addStr = C.wAddStr C.stdScr
 
-drawCharacter :: Character -> IO ()
-drawCharacter c@(Character name ls) =
+drawCharacter :: GChar ()
+drawCharacter =
+  get >>= \c -> let name = characterName c in
+  liftIO $ CH.setStyle reverseStyle >>
   (C.move 0 0) >> addStr name >>
+  CH.setStyle normalStyle >>
   (C.move 1 0) >> addStr "ST " >> (addStr $ show $ getAttribute ST c+10) >>
   (C.move 1 7) >> addStr "HP " >> 
   (addStr $ show $ getAttribute ST c + getAttribute HP c + 10) >>
@@ -71,19 +83,16 @@ drawCharacter c@(Character name ls) =
   (addStr $ show $ getAttribute HT c + getAttribute FP c + 10) >>
   C.refresh
 
-keypress :: Char -> IO ()
-keypress c = (C.mvAddCh 0 0 $ fromIntegral $ fromEnum c) >> C.refresh >> loop
-
 sampleChar = addLevels [Attribute ST 2, BAdvantage "Absolute Direction" 5,
                         Attribute IQ 2, Attribute HP 2, Attribute HT (-1),
                         Attribute BasicSpeed 1, Attribute Move (-1)] $ 
              Character "Bob" []
 
-loop :: IO ()
-loop = CH.getKey C.refresh >>= 
-       \k -> case k of C.KeyChar '\ESC' -> return ()
-                       _ -> (drawCharacter $ sampleChar) >> loop
+loop :: GChar ()
+loop = liftIO (CH.getKey C.refresh) >>= \k -> 
+    case k of C.KeyChar '\ESC' -> return ()
+              _                -> drawCharacter >> loop
 
 main :: IO ()
-main = CH.start >> loop >> CH.end
+main = CH.start >> runStateT (drawCharacter >> loop) sampleChar >> CH.end
 
