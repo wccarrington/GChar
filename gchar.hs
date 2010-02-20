@@ -54,13 +54,26 @@ mergeLevels l [] = [l]
 mergeLevels k (l:ls) = l : mergeLevels k ls
 
 getAttribute :: Attr -> Character -> Int
-getAttribute attr (Character _ levels) = helper attr levels
+getAttribute attr (Character _ levels) = fromIntegral $ helper attr levels
   where helper a1 (Attribute a2 n:ls) = if a1 == a2 then n else helper a1 ls
         helper a (_:ls) = helper a ls
         helper _ [] = 0
 
 addLevels :: [Level] -> Character -> Character
 addLevels as c = foldl' addLevel c as
+
+getReadable :: Attr -> Character -> Int
+getReadable a c
+    | a == ST || a == DX || a == IQ || a == HT = getAttribute a c + 10
+    | a == HP   = getAttribute HP   c + getReadable ST c
+    | a == FP   = getAttribute FP   c + getReadable HT c
+    | a == Will || a == Per = getAttribute a c + getReadable IQ c
+    | a == Move = truncate (getBasicSpeed c) + getAttribute Move c
+    | otherwise = error "Cannot get BasicSpeed with getReadable, use getBasicSpeed instead."
+
+getBasicSpeed :: Character -> Float
+getBasicSpeed c = (fromIntegral (getAttribute BasicSpeed c) + fromIntegral (getReadable HT c) + 
+                   fromIntegral (getReadable DX c)) / 4.0
 
 addStr :: String -> IO ()
 addStr = C.wAddStr C.stdScr
@@ -77,27 +90,16 @@ drawCharacter c@(Character name _) =
   CH.setStyle reverseStyle >>
   (C.move 0 0) >> addStr name >>
   CH.setStyle normalStyle >>
-  (C.move 1 0) >> addStr "ST " >> (addStr $ show $ getAttribute ST c+10) >>
-  (C.move 1 7) >> addStr "HP " >> 
-  (addStr $ show $ getAttribute ST c + getAttribute HP c + 10) >>
-  (C.move 2 0) >> addStr "DX " >> (addStr $ show $ getAttribute DX c+10) >>
-  (C.move 2 7) >> addStr "BS " >>
-  (addStr $ take 3 $ show $ (fromIntegral (getAttribute DX c) + 
-                    fromIntegral (getAttribute HT c) + 
-                    fromIntegral (getAttribute BasicSpeed c)+ 20.0)/4.0) >>
-  (C.move 2 14) >> addStr "BM " >>
-  (addStr $ show $ truncate $ (fromIntegral (getAttribute DX c) + 
-                    fromIntegral (getAttribute HT c) +
-                    fromIntegral (getAttribute BasicSpeed c) + 20.0)/4.0 +
-                    fromIntegral (getAttribute Move c)) >>
-  (C.move 3 0) >> addStr "IQ " >> (addStr $ show $ getAttribute IQ c+10) >>
-  (C.move 3 7) >> addStr "WL " >>
-  (addStr $ show $ getAttribute IQ c + getAttribute Will c + 10) >>
-  (C.move 3 14) >> addStr "PR " >>
-  (addStr $ show $ getAttribute IQ c + getAttribute Per c + 10) >>
-  (C.move 4 0) >> addStr "HT " >> (addStr $ show $ getAttribute HT c+10) >>
-  (C.move 4 7) >> addStr "FP " >> 
-  (addStr $ show $ getAttribute HT c + getAttribute FP c + 10) >>
+  (C.move 1 0)  >> addStr "ST " >> (addStr $ show $ getReadable ST c) >>
+  (C.move 1 7)  >> addStr "HP " >> (addStr $ show $ getReadable HP c) >>
+  (C.move 2 0)  >> addStr "DX " >> (addStr $ show $ getReadable DX c) >>
+  (C.move 2 7)  >> addStr "BS " >> (addStr $ take 3 $ show $ getBasicSpeed c) >>
+  (C.move 2 14) >> addStr "BM " >> (addStr $ show $ getReadable Move c) >>
+  (C.move 3 0)  >> addStr "IQ " >> (addStr $ show $ getReadable IQ c) >>
+  (C.move 3 7)  >> addStr "WL " >> (addStr $ show $ getReadable Will c) >>
+  (C.move 3 14) >> addStr "PR " >> (addStr $ show $ getReadable Per c) >>
+  (C.move 4 0)  >> addStr "HT " >> (addStr $ show $ getReadable HT c) >>
+  (C.move 4 7)  >> addStr "FP " >> (addStr $ show $ getReadable FP c) >>
   C.refresh
 
 drawScreen :: GChar ()
