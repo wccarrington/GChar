@@ -29,6 +29,9 @@ data Attr = ST | DX | IQ | HT | HP | FP | Will | Per | BasicSpeed | Move
   deriving (Show, Eq)
 data Difficulty = Easy | Avg | Hard | VHard deriving (Show, Eq)
 
+allAttributes :: [Attr]
+allAttributes = [ST, DX, IQ, HT, HP, BasicSpeed, Will, FP, Move, Per]
+
 zeroPointCharacter :: Character
 zeroPointCharacter = Character "" []
 
@@ -84,26 +87,41 @@ sampleChar = addLevels [Attribute ST 2, BAdvantage "Absolute Direction" 5,
                         Attribute BasicSpeed 3, Attribute Move (-1)] $ 
              Character "Bob" []
 
-drawCharacter :: Character -> IO ()
-drawCharacter c@(Character name _) =
+highlight :: IO a -> IO a
+highlight a = CH.setStyle reverseStyle >> a
+
+normal :: IO a -> IO a
+normal a = CH.setStyle normalStyle >> a
+
+pickStyle :: (Eq a) => a -> a -> IO b -> IO b
+pickStyle a b | a == b = highlight
+              | otherwise = normal
+
+drawAttr :: Character -> Attr -> Attr -> String -> IO ()
+drawAttr c h a s = pickStyle h a (addStr s >> (addStr $ show $ getReadable a c))
+
+drawCharacter :: Character -> Attr -> IO ()
+drawCharacter c@(Character name _) a =
   C.erase >>
-  CH.setStyle reverseStyle >>
-  (C.move 0 0) >> addStr name >>
-  CH.setStyle normalStyle >>
-  (C.move 1 0)  >> addStr "ST " >> (addStr $ show $ getReadable ST c) >>
-  (C.move 1 7)  >> addStr "HP " >> (addStr $ show $ getReadable HP c) >>
-  (C.move 2 0)  >> addStr "DX " >> (addStr $ show $ getReadable DX c) >>
-  (C.move 2 7)  >> addStr "BS " >> (addStr $ take 3 $ show $ getBasicSpeed c) >>
-  (C.move 2 14) >> addStr "BM " >> (addStr $ show $ getReadable Move c) >>
-  (C.move 3 0)  >> addStr "IQ " >> (addStr $ show $ getReadable IQ c) >>
-  (C.move 3 7)  >> addStr "WL " >> (addStr $ show $ getReadable Will c) >>
-  (C.move 3 14) >> addStr "PR " >> (addStr $ show $ getReadable Per c) >>
-  (C.move 4 0)  >> addStr "HT " >> (addStr $ show $ getReadable HT c) >>
-  (C.move 4 7)  >> addStr "FP " >> (addStr $ show $ getReadable FP c) >>
+  highlight (C.move 0 0 >> addStr name) >>
+  (C.move 1 0)  >> drawAttr c a ST "ST " >>
+  (C.move 1 7)  >> drawAttr c a HP "HP " >>
+  (C.move 2 0)  >> drawAttr c a DX "DX " >>
+  (C.move 2 7)  >> pickStyle BasicSpeed a (addStr "BS " >> 
+                                           (addStr $ take 3 $ show $ getBasicSpeed c)) >>
+  (C.move 2 14) >> drawAttr c a Move "BM " >>
+  (C.move 3 0)  >> drawAttr c a IQ "IQ " >>
+  (C.move 3 7)  >> drawAttr c a Will "WL " >>
+  (C.move 3 14) >> drawAttr c a Per "PR " >>
+  (C.move 4 0)  >> drawAttr c a HT "HT " >>
+  (C.move 4 7)  >> drawAttr c a FP "FP " >>
   C.refresh
 
 drawScreen :: GChar ()
-drawScreen = getCharacter >>= \c -> liftIO $ drawCharacter c
+drawScreen = get >>= \i -> getCharacter >>= \c -> liftIO $ drawCharacter c (allAttributes !! i)
+
+clamp :: (Ord a) => a -> a -> a -> a
+clamp low high i = if i < low then low else if i > high then high else i
 
 input :: C.Key -> GChar ()
 input (C.KeyChar '\ESC') = return ()
@@ -111,6 +129,8 @@ input (C.KeyChar '=') = getCharacter >>= \c -> putCharacter (addLevel c (Attribu
                                       drawScreen >> loop
 input (C.KeyChar '-') = getCharacter >>= \c -> putCharacter (addLevel c (Attribute ST (-1))) >>
                                       drawScreen >> loop
+input C.KeyLeft  = get >>= \i -> put (clamp 0 (length allAttributes - 1) (i-1)) >> drawScreen >> loop
+input C.KeyRight = get >>= \i -> put (clamp 0 (length allAttributes - 1) (i+1)) >> drawScreen >> loop
 input c = (liftIO $ C.move 6 0) >> (liftIO $ addStr $ show c) >> 
           drawScreen >> loop
 
