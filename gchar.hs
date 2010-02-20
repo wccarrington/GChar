@@ -5,9 +5,18 @@ import Control.Monad.State
 import qualified UI.HSCurses.CursesHelper as CH
 import qualified UI.HSCurses.Curses as C
 
-type GChar = StateT Character IO
+type GChar = StateT Int (StateT Character IO)
 
+getCharacter :: GChar Character
+getCharacter = lift get
+
+putCharacter :: Character -> GChar ()
+putCharacter c = lift $ put c
+
+normalStyle :: CH.CursesStyle
 normalStyle = CH.mkCursesStyle []
+
+reverseStyle :: CH.CursesStyle
 reverseStyle = CH.mkCursesStyle [CH.Reverse]
 
 data Character = Character String [Level] deriving Show
@@ -35,20 +44,20 @@ addLevel (Character n ls) a = Character n $ mergeLevels a ls
 mergeLevels :: Level -> [Level] -> [Level]
 mergeLevels k@(Attribute a n) l@((Attribute b m):ls) =
   if a == b then Attribute a (n+m) : ls else head l : mergeLevels k ls
-mergeLevels k@(BAdvantage n c) l@((BAdvantage m b):ls) =
+mergeLevels k@(BAdvantage n _) l@((BAdvantage m _):ls) =
   if n == m then l else head l : mergeLevels k ls
-mergeLevels k@(LAdvantage n1 l1 c1) l@((LAdvantage n2 l2 c2):ls) =
+mergeLevels k@(LAdvantage n1 l1 c1) l@((LAdvantage n2 l2 _):ls) =
   if n1 == n2 then LAdvantage n1 (l1+l2) c1 : ls else head l : mergeLevels k ls
-mergeLevels k@(Skill n1 a1 d1 l1) l@((Skill n2 a2 d2 l2):ls) =
+mergeLevels k@(Skill n1 _ _ _) l@((Skill n2 _ _ _):ls) =
   if n1 == n2 then k : ls else head l : mergeLevels k ls
 mergeLevels l [] = [l]
 mergeLevels k (l:ls) = l : mergeLevels k ls
 
 getAttribute :: Attr -> Character -> Int
-getAttribute a (Character _ ls) = helper a ls
+getAttribute attr (Character _ levels) = helper attr levels
   where helper a1 (Attribute a2 n:ls) = if a1 == a2 then n else helper a1 ls
         helper a (_:ls) = helper a ls
-        helper a [] = 0
+        helper _ [] = 0
 
 addLevels :: [Level] -> Character -> Character
 addLevels as c = foldl' addLevel c as
@@ -56,6 +65,7 @@ addLevels as c = foldl' addLevel c as
 addStr :: String -> IO ()
 addStr = C.wAddStr C.stdScr
 
+sampleChar :: Character
 sampleChar = addLevels [Attribute ST 2, BAdvantage "Absolute Direction" 5,
                         Attribute IQ 2, Attribute HP 2, Attribute HT (-1),
                         Attribute BasicSpeed 3, Attribute Move (-1)] $ 
@@ -74,11 +84,11 @@ drawCharacter c@(Character name _) =
   (C.move 2 7) >> addStr "BS " >>
   (addStr $ take 3 $ show $ (fromIntegral (getAttribute DX c) + 
                     fromIntegral (getAttribute HT c) + 
-                    fromIntegral (getAttribute BasicSpeed c)+ 20)/4) >>
+                    fromIntegral (getAttribute BasicSpeed c)+ 20.0)/4.0) >>
   (C.move 2 14) >> addStr "BM " >>
   (addStr $ show $ truncate $ (fromIntegral (getAttribute DX c) + 
                     fromIntegral (getAttribute HT c) +
-                    fromIntegral (getAttribute BasicSpeed c) + 20)/4 +
+                    fromIntegral (getAttribute BasicSpeed c) + 20.0)/4.0 +
                     fromIntegral (getAttribute Move c)) >>
   (C.move 3 0) >> addStr "IQ " >> (addStr $ show $ getAttribute IQ c+10) >>
   (C.move 3 7) >> addStr "WL " >>
@@ -91,13 +101,13 @@ drawCharacter c@(Character name _) =
   C.refresh
 
 drawScreen :: GChar ()
-drawScreen = get >>= \c -> liftIO $ drawCharacter c
+drawScreen = getCharacter >>= \c -> liftIO $ drawCharacter c
 
 input :: C.Key -> GChar ()
 input (C.KeyChar '\ESC') = return ()
-input (C.KeyChar '=') = get >>= \c -> put (addLevel c (Attribute ST 1)) >>
+input (C.KeyChar '=') = getCharacter >>= \c -> putCharacter (addLevel c (Attribute ST 1)) >>
                                       drawScreen >> loop
-input (C.KeyChar '-') = get >>= \c -> put (addLevel c (Attribute ST (-1))) >>
+input (C.KeyChar '-') = getCharacter >>= \c -> putCharacter (addLevel c (Attribute ST (-1))) >>
                                       drawScreen >> loop
 input c = (liftIO $ C.move 6 0) >> (liftIO $ addStr $ show c) >> 
           drawScreen >> loop
@@ -106,5 +116,5 @@ loop :: GChar ()
 loop = liftIO (CH.getKey C.refresh) >>= input
 
 main :: IO ()
-main = CH.start >> runStateT (drawScreen >> loop) sampleChar >> CH.end
+main = CH.start >> runStateT (runStateT (drawScreen >> loop) 1) sampleChar >> CH.end
 
