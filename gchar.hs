@@ -45,14 +45,11 @@ addLevel :: Character -> Level -> Character
 addLevel (Character n ls) a = Character n $ mergeLevels a ls
 
 mergeLevels :: Level -> [Level] -> [Level]
-mergeLevels k@(Attribute a n) l@((Attribute b m):ls) =
-  if a == b then Attribute a (n+m) : ls else head l : mergeLevels k ls
-mergeLevels k@(BAdvantage n _) l@((BAdvantage m _):ls) =
-  if n == m then l else head l : mergeLevels k ls
-mergeLevels k@(LAdvantage n1 l1 c1) l@((LAdvantage n2 l2 _):ls) =
-  if n1 == n2 then LAdvantage n1 (l1+l2) c1 : ls else head l : mergeLevels k ls
-mergeLevels k@(Skill n1 _ _ _) l@((Skill n2 _ _ _):ls) =
-  if n1 == n2 then k : ls else head l : mergeLevels k ls
+mergeLevels k@(Attribute a1 n1) l@((Attribute a2 n2):ls) | a1 == a2 = Attribute a1 (n1+n2) : ls
+mergeLevels k@(BAdvantage n1 _) l@((BAdvantage n2 _):ls) | n1 == n2 = l
+mergeLevels k@(LAdvantage n1 l1 c1) l@((LAdvantage n2 l2 _):ls) | n1 == n2 = 
+  LAdvantage n1 (l1+l2) c1 : ls
+mergeLevels k@(Skill n1 _ _ _) l@((Skill n2 _ _ _):ls) | n1 == n2 = k : ls
 mergeLevels l [] = [l]
 mergeLevels k (l:ls) = l : mergeLevels k ls
 
@@ -82,10 +79,7 @@ addStr :: String -> IO ()
 addStr = C.wAddStr C.stdScr
 
 sampleChar :: Character
-sampleChar = addLevels [Attribute ST 2, BAdvantage "Absolute Direction" 5,
-                        Attribute IQ 2, Attribute HP 2, Attribute HT (-1),
-                        Attribute BasicSpeed 3, Attribute Move (-1)] $ 
-             Character "Bob" []
+sampleChar = Character "Bob" []
 
 highlight :: IO a -> IO a
 highlight a = CH.setStyle reverseStyle >> a
@@ -125,9 +119,11 @@ clamp low high i = if i < low then low else if i > high then high else i
 
 input :: C.Key -> GChar ()
 input (C.KeyChar '\ESC') = return ()
-input (C.KeyChar '=') = getCharacter >>= \c -> putCharacter (addLevel c (Attribute ST 1)) >>
+input C.KeyUp   = get >>= \i -> 
+                  getCharacter >>= \c -> putCharacter (addLevel c (Attribute (allAttributes !! i) 1)) >>
                                       drawScreen >> loop
-input (C.KeyChar '-') = getCharacter >>= \c -> putCharacter (addLevel c (Attribute ST (-1))) >>
+input C.KeyDown = get >>= \i ->
+                  getCharacter >>= \c -> putCharacter (addLevel c (Attribute (allAttributes !! i) (-1))) >>
                                       drawScreen >> loop
 input C.KeyLeft  = get >>= \i -> put (clamp 0 (length allAttributes - 1) (i-1)) >> drawScreen >> loop
 input C.KeyRight = get >>= \i -> put (clamp 0 (length allAttributes - 1) (i+1)) >> drawScreen >> loop
